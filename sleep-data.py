@@ -6,8 +6,7 @@ import pytz
 import os
 
 # Constants
-local_tz = pytz.timezone("America/New_York")
-
+local_tz = pytz.timezone('Europe/Paris')
 # Load environment variables
 load_dotenv()
 CONFIG = dotenv_values()
