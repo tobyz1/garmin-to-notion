@@ -57,10 +57,14 @@ def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
         return
     
     sleep_date = daily_sleep.get('calendarDate', "Unknown Date")
-    total_sleep = sum(
-        (daily_sleep.get(k, 0) or 0) for k in ['deepSleepSeconds', 'lightSleepSeconds', 'remSleepSeconds']
-    )
-    
+
+    # Convert None to 0
+    light_sleep_sec = daily_sleep.get('lightSleepSeconds') or 0
+    deep_sleep_sec = daily_sleep.get('deepSleepSeconds') or 0
+    rem_sleep_sec = daily_sleep.get('remSleepSeconds') or 0
+    awake_sleep_sec = daily_sleep.get('awakeSleepSeconds') or 0
+    total_sleep = light_sleep_sec + deep_sleep_sec + rem_sleep_sec
+
     if skip_zero_sleep and total_sleep == 0:
         print(f"Skipping sleep data for {sleep_date} as total sleep is 0")
         return
@@ -71,16 +75,16 @@ def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
         "Long Date": {"date": {"start": sleep_date}},
         "Full Date/Time": {"date": {"start": format_time(daily_sleep.get('sleepStartTimestampGMT')), "end": format_time(daily_sleep.get('sleepEndTimestampGMT'))}},
         "Total Sleep (h)": {"number": round(total_sleep / 3600, 1)},
-        "Light Sleep (h)": {"number": round(daily_sleep.get('lightSleepSeconds', 0) / 3600, 1)},
-        "Deep Sleep (h)": {"number": round(daily_sleep.get('deepSleepSeconds', 0) / 3600, 1)},
-        "REM Sleep (h)": {"number": round(daily_sleep.get('remSleepSeconds', 0) / 3600, 1)},
-        "Awake Time (h)": {"number": round(daily_sleep.get('awakeSleepSeconds', 0) / 3600, 1)},
+        "Light Sleep (h)": {"number": round(light_sleep_sec / 3600, 1)},
+        "Deep Sleep (h)": {"number": round(deep_sleep_sec / 3600, 1)},
+        "REM Sleep (h)": {"number": round(rem_sleep_sec / 3600, 1)},
+        "Awake Time (h)": {"number": round(awake_sleep_sec / 3600, 1)},
         "Total Sleep": {"rich_text": [{"text": {"content": format_duration(total_sleep)}}]},
-        "Light Sleep": {"rich_text": [{"text": {"content": format_duration(daily_sleep.get('lightSleepSeconds', 0))}}]},
-        "Deep Sleep": {"rich_text": [{"text": {"content": format_duration(daily_sleep.get('deepSleepSeconds', 0))}}]},
-        "REM Sleep": {"rich_text": [{"text": {"content": format_duration(daily_sleep.get('remSleepSeconds', 0))}}]},
-        "Awake Time": {"rich_text": [{"text": {"content": format_duration(daily_sleep.get('awakeSleepSeconds', 0))}}]},
-        "Resting HR": {"number": sleep_data.get('restingHeartRate', 0)}
+        "Light Sleep": {"rich_text": [{"text": {"content": format_duration(light_sleep_sec)}}]},
+        "Deep Sleep": {"rich_text": [{"text": {"content": format_duration(deep_sleep_sec)}}]},
+        "REM Sleep": {"rich_text": [{"text": {"content": format_duration(rem_sleep_sec)}}]},
+        "Awake Time": {"rich_text": [{"text": {"content": format_duration(awake_sleep_sec)}}]},
+        "Resting HR": {"number": sleep_data.get('restingHeartRate') or 0}
     }
     
     try:
