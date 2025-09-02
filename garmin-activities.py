@@ -8,6 +8,21 @@ import os
 # Your local time zone, replace with the appropriate one if needed
 local_tz = pytz.timezone('America/Toronto')
 
+ACTIVITY_MAPPING = {
+    "barre": ("Strength", "Barre"),
+    "indoor cardio": ("Cardio", "Indoor Cardio"),
+    "indoor cycling": ("Cycling", "Indoor Cycling"),
+    "indoor rowing": ("Rowing", "Indoor Rowing"),
+    "speed walking": ("Walking", "Speed Walking"),
+    "strength training": ("Strength", "Strength Training"),
+    "treadmill running": ("Running", "Treadmill Running"),
+    "rowing v2": ("Rowing", "Rowing"),
+    "yoga": ("Yoga/Pilates", "Yoga"),
+    "pilates": ("Yoga/Pilates", "Pilates"),
+    "meditation": ("Meditation", "Meditation"),
+    "stretching": ("Stretching", "Stretching"),
+}
+
 ACTIVITY_ICONS = {
     "Barre": "https://img.icons8.com/?size=100&id=66924&format=png&color=000000",
     "Breathwork": "https://img.icons8.com/?size=100&id=9798&format=png&color=000000",
@@ -34,25 +49,25 @@ def get_all_activities(garmin, limit=1000):
     return garmin.get_activities(0, limit)
 
 def format_activity_type(activity_type, activity_name=""):
-    # First format the activity type as before
-    formatted_type = activity_type.replace('_', ' ').title() if activity_type else "Unknown"
+    """
+    Retourne (main_type, subtype) en normalisant les activités Garmin.
+    """
+    formatted_type = activity_type.replace('_', ' ').lower() if activity_type else "unknown"
 
-    # Initialize subtype as the same as the main type
-    activity_subtype = formatted_type
-    activity_type = formatted_type
+    # Cherche dans le mapping global
+    if formatted_type in ACTIVITY_MAPPING:
+        return ACTIVITY_MAPPING[formatted_type]
 
-    # Map of specific subtypes to their main types
-    ACTIVITY_MAPPING = {
-    "marche à pied": ("Walking", "Speed Walking"),
-    "treadmill running": ("Running", "Treadmill Running"),
-    "indoor cycling": ("Cycling", "Indoor Cycling"),
-    "barre": ("Strength", "Barre"),
-    "yoga": ("Yoga/Pilates", "Yoga"),
-    "pilates": ("Yoga/Pilates", "Pilates"),
-    "indoor rowing": ("Rowing", "Indoor Rowing"),
-    "strength training": ("Strength", "Strength Training"),
-    # etc.
-}
+    # Cas particuliers basés sur le nom d'activité
+    if activity_name:
+        name_lower = activity_name.lower()
+        for key in ACTIVITY_MAPPING.keys():
+            if key in name_lower:
+                return ACTIVITY_MAPPING[key]
+
+    # Fallback si aucune correspondance
+    return formatted_type.title(), formatted_type.title()
+
 
     # Special replacement for Rowing V2
     if formatted_type == "Rowing V2":
