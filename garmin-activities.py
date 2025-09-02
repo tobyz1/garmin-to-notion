@@ -6,7 +6,7 @@ import pytz
 import os
 
 # Your local time zone, replace with the appropriate one if needed
-local_tz = pytz.timezone('America/Toronto')
+local_tz = pytz.timezone('Europe/Paris')
 
 ACTIVITY_MAPPING = {
     "marche à pied": ("Walking", "Marche à pied"),
