@@ -169,19 +169,26 @@ def activity_needs_update(existing_activity, new_activity):
         (not has_subactivity)  # If the property doesn't exist, we need an update
     )
 
-def create_activity(client, database_id, activity):
+def split_activity_name(activity_name):
+    parts = activity_name.strip().split()
+    if len(parts) == 1:
+        return parts[0], ""  # (Activity, No Location)
+    else:
+        return parts[-1], " ".join(parts[:-1])  # (Activity, Location)
 
-    # Create a new activity in the Notion database
+
+def create_activity(client, database_id, activity):
     activity_date = activity.get('startTimeGMT')
-    activity_name = format_entertainment(activity.get('activityName', 'Unnamed Activity'))
+    raw_name = format_entertainment(activity.get('activityName', 'Unnamed Activity'))
+    activity_name, location = split_activity_name(raw_name)
+
     activity_type, activity_subtype = format_activity_type(
         activity.get('activityType', {}).get('typeKey', 'Unknown'),
         activity_name
     )
-    
-    # Get icon for the activity type
+
     icon_url = ACTIVITY_ICONS.get(activity_subtype if activity_subtype != activity_type else activity_type)
-    
+
     properties = {
         "Date": {"date": {"start": activity_date}},
         "Activity Type": {"select": {"name": activity_type}},
@@ -201,32 +208,36 @@ def create_activity(client, database_id, activity):
         "PR": {"checkbox": activity.get('pr', False)},
         "Fav": {"checkbox": activity.get('favorite', False)}
     }
-    
+
+    if location:
+        properties["Location"] = {"rich_text": [{"text": {"content": location}}]}
+
     page = {
         "parent": {"database_id": database_id},
         "properties": properties,
     }
-    
+
     if icon_url:
         page["icon"] = {"type": "external", "external": {"url": icon_url}}
-    
+
     client.pages.create(**page)
+
     
 def update_activity(client, existing_activity, new_activity):
+    raw_name = format_entertainment(new_activity.get('activityName', 'Unnamed Activity'))
+    activity_name, location = split_activity_name(raw_name)
 
-    # Update an existing activity in the Notion database with new data
-    activity_name = new_activity.get('activityName', 'Unnamed Activity')
     activity_type, activity_subtype = format_activity_type(
         new_activity.get('activityType', {}).get('typeKey', 'Unknown'),
         activity_name
     )
-    
-    # Get icon for the activity type
+
     icon_url = ACTIVITY_ICONS.get(activity_subtype if activity_subtype != activity_type else activity_type)
-    
+
     properties = {
         "Activity Type": {"select": {"name": activity_type}},
         "Subactivity Type": {"select": {"name": activity_subtype}},
+        "Activity Name": {"title": [{"text": {"content": activity_name}}]},
         "Distance (km)": {"number": round(new_activity.get('distance', 0) / 1000, 2)},
         "Duration (min)": {"number": round(new_activity.get('duration', 0) / 60, 2)},
         "Calories": {"number": round(new_activity.get('calories', 0))},
@@ -241,15 +252,20 @@ def update_activity(client, existing_activity, new_activity):
         "PR": {"checkbox": new_activity.get('pr', False)},
         "Fav": {"checkbox": new_activity.get('favorite', False)}
     }
-    
+
+    if location:
+        properties["Location"] = {"rich_text": [{"text": {"content": location}}]}
+    else:
+        properties["Location"] = {"rich_text": []}  # clear location if none
+
     update = {
         "page_id": existing_activity['id'],
         "properties": properties,
     }
-    
+
     if icon_url:
         update["icon"] = {"type": "external", "external": {"url": icon_url}}
-        
+
     client.pages.update(**update)
 
 def main():
