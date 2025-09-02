@@ -81,7 +81,7 @@ def format_garmin_value(value, activity_type, typeId):
         formatted_pace = f"{pminutes}:{pseconds:02d} /km"
         return formatted_value, formatted_pace
 
-    if typeId == 4:  # 10K
+        if typeId == 4:  # 10K
         # Round to the nearest second
         total_seconds = round(value)
         hours = total_seconds // 3600
@@ -98,7 +98,7 @@ def format_garmin_value(value, activity_type, typeId):
         formatted_pace = f"{pminutes}:{pseconds:02d} /km"
         return formatted_value, formatted_pace
 
-        if typeId == 5:  # Half Marathon
+    if typeId == 5:  # Half Marathon   ✅ bien aligné
         total_seconds = round(value)
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
@@ -125,6 +125,7 @@ def format_garmin_value(value, activity_type, typeId):
         pseconds = int(total_pseconds % 60)
         formatted_pace = f"{pminutes}:{pseconds:02d} /km"
         return formatted_value, formatted_pace
+
 
     if typeId in [7, 8]:  # Longest Run, Longest Ride
         value_km = value / 1000
