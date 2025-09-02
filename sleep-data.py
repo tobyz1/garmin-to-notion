@@ -1,17 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from garminconnect import Garmin
 from notion_client import Client
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 import pytz
 import os
 
 # Constants
 local_tz = pytz.timezone("America/New_York")
-DAYS_TO_SYNC = 730  # 2 ans
 
 # Load environment variables
 load_dotenv()
-CONFIG = dotenv_values()
 
 def get_sleep_data(garmin, date_str):
     try:
@@ -51,7 +49,7 @@ def sleep_data_exists(client, database_id, sleep_date):
         print(f"Error checking existence for {sleep_date}: {e}")
         return None
 
-def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
+def create_sleep_data(client, database_id, sleep_data):
     daily_sleep = sleep_data.get('dailySleepDTO', {})
     if not daily_sleep:
         return
@@ -65,7 +63,7 @@ def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
     awake_sleep_sec = daily_sleep.get('awakeSleepSeconds') or 0
     total_sleep = light_sleep_sec + deep_sleep_sec + rem_sleep_sec
 
-    if skip_zero_sleep and total_sleep == 0:
+    if total_sleep == 0:
         print(f"Skipping sleep data for {sleep_date} as total sleep is 0")
         return
 
@@ -96,7 +94,6 @@ def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
 def main():
     load_dotenv()
 
-    # Initialize Garmin and Notion clients using environment variables
     garmin_email = os.getenv("GARMIN_EMAIL")
     garmin_password = os.getenv("GARMIN_PASSWORD")
     notion_token = os.getenv("NOTION_TOKEN")
@@ -112,18 +109,17 @@ def main():
 
     client = Client(auth=notion_token)
 
-    for delta in range(DAYS_TO_SYNC):
-        day = (datetime.today() - timedelta(days=delta)).date().isoformat()
-        data = get_sleep_data(garmin, day)
-        if data:
-            sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
-            if sleep_date:
-                if not sleep_data_exists(client, database_id, sleep_date):
-                    create_sleep_data(client, database_id, data, skip_zero_sleep=False)
-                else:
-                    print(f"Sleep data already exists for {sleep_date}")
+    # Ne récupérer que la nuit d'hier
+    yesterday = (datetime.today() - timedelta(days=1)).date().isoformat()
+    data = get_sleep_data(garmin, yesterday)
+    if data:
+        sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
+        if sleep_date and not sleep_data_exists(client, database_id, sleep_date):
+            create_sleep_data(client, database_id, data)
         else:
-            print(f"No sleep data for {day}")
+            print(f"Sleep data already exists for {sleep_date}")
+    else:
+        print(f"No sleep data for {yesterday}")
 
 if __name__ == '__main__':
     main()
