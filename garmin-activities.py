@@ -42,15 +42,17 @@ def format_activity_type(activity_type, activity_name=""):
     activity_type = formatted_type
 
     # Map of specific subtypes to their main types
-    activity_mapping = {
-        "Barre": "Strength",
-        "Indoor Cardio": "Cardio",
-        "Indoor Cycling": "Cycling",
-        "Indoor Rowing": "Rowing",
-        "Speed Walking": "Walking",
-        "Strength Training": "Strength",
-        "Treadmill Running": "Running"
-    }
+    ACTIVITY_MAPPING = {
+    "marche à pied": ("Walking", "Speed Walking"),
+    "treadmill running": ("Running", "Treadmill Running"),
+    "indoor cycling": ("Cycling", "Indoor Cycling"),
+    "barre": ("Strength", "Barre"),
+    "yoga": ("Yoga/Pilates", "Yoga"),
+    "pilates": ("Yoga/Pilates", "Pilates"),
+    "indoor rowing": ("Rowing", "Indoor Rowing"),
+    "strength training": ("Strength", "Strength Training"),
+    # etc.
+}
 
     # Special replacement for Rowing V2
     if formatted_type == "Rowing V2":
@@ -170,11 +172,26 @@ def activity_needs_update(existing_activity, new_activity):
     )
 
 def split_activity_name(activity_name):
+    """
+    Sépare le lieu (tout ce qui est avant) et l'activité (tout ce qui est à la fin)
+    basé sur les activités connues dans ACTIVITY_MAPPING.
+    """
+    name_lower = activity_name.lower().strip()
+    
+    # On trie par longueur décroissante pour éviter les collisions
+    for act_key in sorted(ACTIVITY_MAPPING.keys(), key=lambda x: -len(x)):
+        if name_lower.endswith(act_key):
+            activity = ACTIVITY_MAPPING[act_key][1]  # Nom lisible pour l'activité
+            location = activity_name[:len(activity_name) - len(act_key)].strip()
+            return activity, location
+    
+    # Fallback : dernier mot = activité
     parts = activity_name.strip().split()
     if len(parts) == 1:
-        return parts[0], ""  # (Activity, No Location)
+        return parts[0], ""
     else:
-        return parts[-1], " ".join(parts[:-1])  # (Activity, Location)
+        return parts[-1], " ".join(parts[:-1])
+
 
 
 def create_activity(client, database_id, activity):
