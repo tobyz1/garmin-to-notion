@@ -24,7 +24,7 @@ ACTIVITY_MAPPING = {
     "étirement": ("Stretching", "Stretching"),
     "natation en piscine": ("Swimming", "Swimming"),
     "natation en eau libre": ("Swimming", "Open Water Swimming"),
-
+    "me suivre": ("Other", "Me Suivre")
 }
 
 ACTIVITY_ICONS = {
@@ -33,6 +33,7 @@ ACTIVITY_ICONS = {
     "Cardio": "https://img.icons8.com/?size=100&id=71221&format=png&color=000000",
     "Cycling": "https://img.icons8.com/?size=100&id=47443&format=png&color=000000",
     "Hiking": "https://img.icons8.com/?size=100&id=9844&format=png&color=000000",
+    "Marche à pied": "https://img.icons8.com/?size=100&id=9844&format=png&color=000000",
     "Indoor Cardio": "https://img.icons8.com/?size=100&id=62779&format=png&color=000000",
     "Indoor Cycling": "https://img.icons8.com/?size=100&id=47443&format=png&color=000000",
     "Indoor Rowing": "https://img.icons8.com/?size=100&id=71098&format=png&color=000000",
