@@ -9,7 +9,7 @@ import os
 local_tz = pytz.timezone('America/Toronto')
 
 ACTIVITY_MAPPING = {
-    "marche à pied": ("Walking", "Speed Walking"),
+    "marche à pied": ("Walking", "Marche à pied"),
     "course à pied": ("Running", "Running"),
     "musculation": ("Strength", "Strength Training"),
     "barre": ("Strength", "Barre"),
@@ -22,6 +22,9 @@ ACTIVITY_MAPPING = {
     "pilates": ("Yoga/Pilates", "Pilates"),
     "meditation": ("Meditation", "Meditation"),
     "étirement": ("Stretching", "Stretching"),
+    "natation en piscine": ("Swimming", "Swimming"),
+    "natation en eau libre": ("Swimming", "Open Water Swimming"),
+
 }
 
 ACTIVITY_ICONS = {
