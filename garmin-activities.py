@@ -9,18 +9,19 @@ import os
 local_tz = pytz.timezone('America/Toronto')
 
 ACTIVITY_MAPPING = {
-    "Musculation": ("Strength", "Barre"),
-    "Cardio Interieur": ("Cardio", "Indoor Cardio"),
-    "Vélo d'interieur": ("Cycling", "Indoor Cycling"),
-    "Rameur": ("Rowing", "Indoor Rowing"),
-    "Marche": ("Walking", "Speed Walking"),
-    "Musculation": ("Strength", "Strength Training"),
+    "marche à pied": ("Walking", "Speed Walking"),
+    "course à pied": ("Running", "Running"),
+    "musculation": ("Strength", "Strength Training"),
+    "barre": ("Strength", "Barre"),
+    "cardio interieur": ("Cardio", "Indoor Cardio"),
+    "vélo d'interieur": ("Cycling", "Indoor Cycling"),
+    "rameur": ("Rowing", "Indoor Rowing"),
     "treadmill running": ("Running", "Treadmill Running"),
     "rowing v2": ("Rowing", "Rowing"),
     "yoga": ("Yoga/Pilates", "Yoga"),
     "pilates": ("Yoga/Pilates", "Pilates"),
     "meditation": ("Meditation", "Meditation"),
-    "Etirement": ("Stretching", "Stretching"),
+    "étirement": ("Stretching", "Stretching"),
 }
 
 ACTIVITY_ICONS = {
@@ -187,22 +188,13 @@ def activity_needs_update(existing_activity, new_activity):
     )
 
 def split_activity_name(activity_name):
-    """
-    Sépare le lieu et l'activité Garmin.
-    Le lieu peut avoir plusieurs mots. L'activité est recherchée parmi les clés connues à la fin de la chaîne.
-    """
     name_lower = activity_name.lower().strip()
-
-    # Trier les clés par longueur décroissante pour matcher la plus longue en premier
     sorted_keys = sorted(ACTIVITY_MAPPING.keys(), key=lambda x: -len(x))
-
     for act_key in sorted_keys:
         if name_lower.endswith(act_key):
-            activity = ACTIVITY_MAPPING[act_key][1]  # Nom lisible pour Notion
+            activity = ACTIVITY_MAPPING[act_key][1]
             location = activity_name[:len(activity_name) - len(act_key)].strip()
             return activity, location
-
-    # Fallback : dernier mot = activité
     parts = activity_name.strip().split()
     if len(parts) == 1:
         return parts[0], ""
