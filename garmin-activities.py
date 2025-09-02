@@ -188,24 +188,27 @@ def activity_needs_update(existing_activity, new_activity):
 
 def split_activity_name(activity_name):
     """
-    Sépare le lieu (tout ce qui est avant) et l'activité (tout ce qui est à la fin)
-    basé sur les activités connues dans ACTIVITY_MAPPING.
+    Sépare le lieu et l'activité Garmin.
+    Le lieu peut avoir plusieurs mots. L'activité est recherchée parmi les clés connues à la fin de la chaîne.
     """
     name_lower = activity_name.lower().strip()
-    
-    # On trie par longueur décroissante pour éviter les collisions
-    for act_key in sorted(ACTIVITY_MAPPING.keys(), key=lambda x: -len(x)):
+
+    # Trier les clés par longueur décroissante pour matcher la plus longue en premier
+    sorted_keys = sorted(ACTIVITY_MAPPING.keys(), key=lambda x: -len(x))
+
+    for act_key in sorted_keys:
         if name_lower.endswith(act_key):
-            activity = ACTIVITY_MAPPING[act_key][1]  # Nom lisible pour l'activité
+            activity = ACTIVITY_MAPPING[act_key][1]  # Nom lisible pour Notion
             location = activity_name[:len(activity_name) - len(act_key)].strip()
             return activity, location
-    
+
     # Fallback : dernier mot = activité
     parts = activity_name.strip().split()
     if len(parts) == 1:
         return parts[0], ""
     else:
         return parts[-1], " ".join(parts[:-1])
+
 
 
 
