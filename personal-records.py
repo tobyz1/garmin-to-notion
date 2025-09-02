@@ -9,6 +9,8 @@ def get_icon_for_record(activity_name):
         "1mi": "⚡",
         "5K": "👟",
         "10K": "⭐",
+        "Half Marathon": "🏅",   # ✅ ajouté
+        "Marathon": "🎖️",       # ✅ ajouté
         "Longest Run": "🏃",
         "Longest Ride": "🚴",
         "Total Ascent": "🚵",
@@ -19,7 +21,8 @@ def get_icon_for_record(activity_name):
         "Longest Goal Streak": "✔️",
         "Other": "🏅"
     }
-    return icon_map.get(activity_name, "🏅")  # Default to "Other" icon if not found
+    return icon_map.get(activity_name, "🏅")
+
 
 def get_cover_for_record(activity_name):
     cover_map = {
@@ -95,6 +98,34 @@ def format_garmin_value(value, activity_type, typeId):
         formatted_pace = f"{pminutes}:{pseconds:02d} /km"
         return formatted_value, formatted_pace
 
+        if typeId == 5:  # Half Marathon
+        total_seconds = round(value)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        formatted_value = f"{hours}:{minutes:02d}:{seconds:02d}"
+        
+        # Pace basé sur 21.1 km
+        total_pseconds = total_seconds / 21.0975
+        pminutes = int(total_pseconds // 60)
+        pseconds = int(total_pseconds % 60)
+        formatted_pace = f"{pminutes}:{pseconds:02d} /km"
+        return formatted_value, formatted_pace
+
+    if typeId == 6:  # Marathon
+        total_seconds = round(value)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        formatted_value = f"{hours}:{minutes:02d}:{seconds:02d}"
+        
+        # Pace basé sur 42.195 km
+        total_pseconds = total_seconds / 42.195
+        pminutes = int(total_pseconds // 60)
+        pseconds = int(total_pseconds % 60)
+        formatted_pace = f"{pminutes}:{pseconds:02d} /km"
+        return formatted_value, formatted_pace
+
     if typeId in [7, 8]:  # Longest Run, Longest Ride
         value_km = value / 1000
         formatted_value = f"{value_km:.2f} km"
@@ -145,6 +176,8 @@ def replace_activity_name_by_typeId(typeId):
         2: "1mi",
         3: "5K",
         4: "10K",
+        5: "Half Marathon",   # ✅ ajouté
+        6: "Marathon",        # ✅ ajouté
         7: "Longest Run",
         8: "Longest Ride",
         9: "Total Ascent",
