@@ -34,6 +34,7 @@ ACTIVITY_ICONS = {
     "Cycling": "https://img.icons8.com/?size=100&id=47443&format=png&color=000000",
     "Hiking": "https://img.icons8.com/?size=100&id=9844&format=png&color=000000",
     "Marche à pied": "https://img.icons8.com/?size=100&id=9844&format=png&color=000000",
+    "Me Suivre": "https://img.icons8.com/?size=100&id=9844&format=png&color=000000",
     "Indoor Cardio": "https://img.icons8.com/?size=100&id=62779&format=png&color=000000",
     "Indoor Cycling": "https://img.icons8.com/?size=100&id=47443&format=png&color=000000",
     "Indoor Rowing": "https://img.icons8.com/?size=100&id=71098&format=png&color=000000",
