@@ -9,18 +9,18 @@ import os
 local_tz = pytz.timezone('America/Toronto')
 
 ACTIVITY_MAPPING = {
-    "barre": ("Strength", "Barre"),
-    "indoor cardio": ("Cardio", "Indoor Cardio"),
-    "indoor cycling": ("Cycling", "Indoor Cycling"),
-    "indoor rowing": ("Rowing", "Indoor Rowing"),
-    "speed walking": ("Walking", "Speed Walking"),
-    "strength training": ("Strength", "Strength Training"),
+    "Musculation": ("Strength", "Barre"),
+    "Cardio Interieur": ("Cardio", "Indoor Cardio"),
+    "Vélo d'interieur": ("Cycling", "Indoor Cycling"),
+    "Rameur": ("Rowing", "Indoor Rowing"),
+    "Marche": ("Walking", "Speed Walking"),
+    "Musculation": ("Strength", "Strength Training"),
     "treadmill running": ("Running", "Treadmill Running"),
     "rowing v2": ("Rowing", "Rowing"),
     "yoga": ("Yoga/Pilates", "Yoga"),
     "pilates": ("Yoga/Pilates", "Pilates"),
     "meditation": ("Meditation", "Meditation"),
-    "stretching": ("Stretching", "Stretching"),
+    "Etirement": ("Stretching", "Stretching"),
 }
 
 ACTIVITY_ICONS = {
