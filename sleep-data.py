@@ -92,7 +92,15 @@ def main():
     garmin.login()
     client = Client(auth=notion_token)
 
+    DAYS_TO_SYNC = 730  # 2 ans
+
+    for delta in range(DAYS_TO_SYNC):
+        day = (datetime.today() - timedelta(days=delta)).date().isoformat()
+        data = garmin.get_sleep_data(day)
+        if data and not sleep_data_exists(client, database_id, day):
+            create_sleep_data(client, database_id, data, skip_zero_sleep=False)
     data = get_sleep_data(garmin)
+    
     if data:
         sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
         if sleep_date and not sleep_data_exists(client, database_id, sleep_date):
