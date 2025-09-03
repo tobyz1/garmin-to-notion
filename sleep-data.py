@@ -110,7 +110,7 @@ def main():
     client = Client(auth=notion_token)
 
     # Ne récupérer que la nuit d'hier
-    yesterday = (datetime.today() - timedelta(days=1)).date().isoformat()
+    yesterday = (datetime.today()).date().isoformat()
     data = get_sleep_data(garmin, yesterday)
     if data:
         sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
