@@ -6,7 +6,7 @@ import pytz
 import os
 
 # Constants
-local_tz = pytz.timezone("America/New_York")
+local_tz = pytz.timezone("Europe/Paris")
 DAYS_TO_SYNC = 730  # 2 ans
 
 # Load environment variables
