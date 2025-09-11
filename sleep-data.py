@@ -1,53 +1,62 @@
 from datetime import datetime, timedelta
+from garminconnect import Garmin
+from notion_client import Client
+from dotenv import load_dotenv, dotenv_values
+import pytz
+import os
 
-def _normalize_to_iso(date_str):
-    """
-    Retourne 'YYYY-MM-DD' à partir de formats possibles :
-    - 'YYYY-MM-DD' (déjà OK)
-    - 'YYYY-MM-DDTHH:MM:SS...'
-    - 'DD.MM.YYYY' ou 'DD/MM/YYYY'
-    - autres -> tentative via fromisoformat sinon renvoie tel quel
-    """
-    if not date_str:
-        return None
+# Constants
+local_tz = pytz.timezone("Europe/Paris")
+DAYS_TO_SYNC = 14  # 🔥 deux dernières semaines
+
+# Load environment variables
+load_dotenv()
+CONFIG = dotenv_values()
+
+def get_sleep_data(garmin, date_str):
     try:
-        # cas ISO avec time
-        if 'T' in date_str:
-            return date_str.split('T')[0]
-        # cas 'DD.MM.YYYY'
-        if '.' in date_str:
-            d = datetime.strptime(date_str, '%d.%m.%Y').date()
-            return d.isoformat()
-        # cas 'DD/MM/YYYY'
-        if '/' in date_str:
-            d = datetime.strptime(date_str, '%d/%m/%Y').date()
-            return d.isoformat()
-        # cas 'YYYY-MM-DD'
-        datetime.strptime(date_str, '%Y-%m-%d')
-        return date_str
-    except Exception:
-        try:
-            d = datetime.fromisoformat(date_str)
-            return d.date().isoformat()
-        except Exception:
-            # fallback: renvoyer brut (comparaisons échoueront mais on aura essayé)
-            return date_str
+        return garmin.get_sleep_data(date_str)
+    except Exception as e:
+        print(f"Error fetching sleep data for {date_str}: {e}")
+        return None
 
-def create_sleep_data(client, database_id, sleep_data):
+def format_duration(seconds):
+    minutes = (seconds or 0) // 60
+    return f"{minutes // 60}h {minutes % 60}m"
+
+def format_time(timestamp):
+    return (
+        datetime.utcfromtimestamp(timestamp / 1000).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        if timestamp else None
+    )
+
+def format_time_readable(timestamp):
+    return (
+        datetime.fromtimestamp(timestamp / 1000, local_tz).strftime("%H:%M")
+        if timestamp else "Unknown"
+    )
+
+def format_date_for_name(sleep_date):
+    return datetime.strptime(sleep_date, "%Y-%m-%d").strftime("%d.%m.%Y") if sleep_date else "Unknown"
+
+def sleep_data_exists(client, database_id, sleep_date):
+    try:
+        query = client.databases.query(
+            database_id=database_id,
+            filter={"property": "Long Date", "date": {"equals": sleep_date}}
+        )
+        results = query.get('results', [])
+        return results[0] if results else None
+    except Exception as e:
+        print(f"Error checking existence for {sleep_date}: {e}")
+        return None
+
+def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
     daily_sleep = sleep_data.get('dailySleepDTO', {})
     if not daily_sleep:
         return
-
-    raw_sleep_date = daily_sleep.get('calendarDate', None)
-    if not raw_sleep_date:
-        print("No calendarDate found, skipping.")
-        return
-
-    # Normalise la date d'entrée en YYYY-MM-DD
-    sleep_date = _normalize_to_iso(raw_sleep_date)
-    if not sleep_date:
-        print(f"Impossible de normaliser la date: {raw_sleep_date}")
-        return
+    
+    sleep_date = daily_sleep.get('calendarDate', "Unknown Date")
 
     # Convert None to 0
     light_sleep_sec = daily_sleep.get('lightSleepSeconds') or 0
@@ -56,77 +65,15 @@ def create_sleep_data(client, database_id, sleep_data):
     awake_sleep_sec = daily_sleep.get('awakeSleepSeconds') or 0
     total_sleep = light_sleep_sec + deep_sleep_sec + rem_sleep_sec
 
-    if total_sleep == 0:
+    if skip_zero_sleep and total_sleep == 0:
         print(f"Skipping sleep data for {sleep_date} as total sleep is 0")
-        return
-
-    # Horaires de sommeil
-    start_ts = daily_sleep.get('sleepStartTimestampGMT')
-    end_ts = daily_sleep.get('sleepEndTimestampGMT')
-
-    start_local = datetime.fromtimestamp(start_ts / 1000, local_tz) if start_ts else None
-    end_local = datetime.fromtimestamp(end_ts / 1000, local_tz) if end_ts else None
-
-    # Condition Sleep Goal
-    sleep_goal = False
-    if start_local and end_local:
-        if start_local.time() < datetime.strptime("23:00", "%H:%M").time() \
-           and end_local.time() < datetime.strptime("08:30", "%H:%M").time() \
-           and (total_sleep / 3600) > 7.5:
-            sleep_goal = True
-
-    # --- calculer la semaine précédente en tenant compte du fuseau local si présent ---
-    try:
-        now_local = datetime.now(local_tz) if 'local_tz' in globals() and local_tz else datetime.now()
-    except Exception:
-        now_local = datetime.now()
-    today = now_local.date()
-    one_week_ago = today - timedelta(days=7)
-
-    # --- interroger Notion avec pagination pour récupérer toutes les dates de la semaine précédente ---
-    existing_dates = set()
-    start_cursor = None
-    while True:
-        q = {
-            "database_id": database_id,
-            "filter": {
-                "and": [
-                    {"property": "Long Date", "date": {"on_or_after": str(one_week_ago)}},
-                    {"property": "Long Date", "date": {"on_or_before": str(today)}}
-                ]
-            },
-            "page_size": 100
-        }
-        if start_cursor:
-            q["start_cursor"] = start_cursor
-
-        res = client.databases.query(**q)
-        for result in res.get("results", []):
-            props = result.get("properties", {})
-            long_date = props.get("Long Date", {}).get("date", {}).get("start")
-            if long_date:
-                # normalise la date renvoyée par Notion (ex : '2025-09-07T00:00:00.000+00:00' -> '2025-09-07')
-                existing_dates.add(_normalize_to_iso(long_date))
-        # pagination
-        if not res.get("has_more"):
-            break
-        start_cursor = res.get("next_cursor")
-
-    # Debug logs pour comprendre ce qui est présent
-    print(f"Window: {one_week_ago} -> {today}")
-    print(f"Dates existantes récupérées (dans la fenêtre) : {sorted(existing_dates)}")
-    print(f"Date courante normalisée à insérer : {sleep_date}")
-
-    # Si la date existe déjà, on ne recrée pas
-    if sleep_date in existing_dates:
-        print(f"Sleep entry already exists for {sleep_date}, skipping.")
         return
 
     properties = {
         "Date": {"title": [{"text": {"content": format_date_for_name(sleep_date)}}]},
-        "Times": {"rich_text": [{"text": {"content": f"{format_time_readable(start_ts)} → {format_time_readable(end_ts)}"}}]},
-        "Long Date": {"date": {"start": sleep_date}},  # utilise la date normalisée YYYY-MM-DD
-        "Full Date/Time": {"date": {"start": format_time(start_ts), "end": format_time(end_ts)}},
+        "Times": {"rich_text": [{"text": {"content": f"{format_time_readable(daily_sleep.get('sleepStartTimestampGMT'))} → {format_time_readable(daily_sleep.get('sleepEndTimestampGMT'))}"}}]},
+        "Long Date": {"date": {"start": sleep_date}},
+        "Full Date/Time": {"date": {"start": format_time(daily_sleep.get('sleepStartTimestampGMT')), "end": format_time(daily_sleep.get('sleepEndTimestampGMT'))}},
         "Total Sleep (h)": {"number": round(total_sleep / 3600, 1)},
         "Light Sleep (h)": {"number": round(light_sleep_sec / 3600, 1)},
         "Deep Sleep (h)": {"number": round(deep_sleep_sec / 3600, 1)},
@@ -137,12 +84,46 @@ def create_sleep_data(client, database_id, sleep_data):
         "Deep Sleep": {"rich_text": [{"text": {"content": format_duration(deep_sleep_sec)}}]},
         "REM Sleep": {"rich_text": [{"text": {"content": format_duration(rem_sleep_sec)}}]},
         "Awake Time": {"rich_text": [{"text": {"content": format_duration(awake_sleep_sec)}}]},
-        "Resting HR": {"number": sleep_data.get('restingHeartRate') or 0},
-        "Sleep Goal": {"checkbox": sleep_goal}
+        "Resting HR": {"number": sleep_data.get('restingHeartRate') or 0}
     }
-
+    
     try:
         client.pages.create(parent={"database_id": database_id}, properties=properties, icon={"emoji": "😴"})
-        print(f"Created sleep entry for: {sleep_date} (Sleep Goal = {sleep_goal})")
+        print(f"Created sleep entry for: {sleep_date}")
     except Exception as e:
         print(f"Error creating sleep entry for {sleep_date}: {e}")
+
+def main():
+    load_dotenv()
+
+    # Initialize Garmin and Notion clients using environment variables
+    garmin_email = os.getenv("GARMIN_EMAIL")
+    garmin_password = os.getenv("GARMIN_PASSWORD")
+    notion_token = os.getenv("NOTION_TOKEN")
+    database_id = os.getenv("NOTION_SLEEP_DB_ID")
+
+    garmin = Garmin(garmin_email, garmin_password)
+    try:
+        garmin.login()
+        print("Garmin login successful")
+    except Exception as e:
+        print("Garmin login failed:", e)
+        return
+
+    client = Client(auth=notion_token)
+
+    for delta in range(DAYS_TO_SYNC):  # 🔥 seulement 14 jours
+        day = (datetime.today() - timedelta(days=delta)).date().isoformat()
+        data = get_sleep_data(garmin, day)
+        if data:
+            sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
+            if sleep_date:
+                if not sleep_data_exists(client, database_id, sleep_date):
+                    create_sleep_data(client, database_id, data, skip_zero_sleep=False)
+                else:
+                    print(f"Sleep data already exists for {sleep_date}")
+        else:
+            print(f"No sleep data for {day}")
+
+if __name__ == '__main__':
+    main()
