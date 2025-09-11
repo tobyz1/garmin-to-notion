@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import pytz
 import os
 
-# Your local time zone, replace with the appropriate one if needed
+# Your local time zone
 local_tz = pytz.timezone('Europe/Paris')
 
 ACTIVITY_MAPPING = {
@@ -95,47 +95,206 @@ def format_pace(average_speed):
     else:
         return ""
 
-def activity_exists(client, database_id, activity):
-    """Vérifie si une activité existe déjà dans Notion (clé = Date + Durée + Distance)."""
-    query = client.databases.query(
-        database_id=database_id,
-        filter={
-            "and": [
-                {"property": "Date", "date": {"equals": activity['startTimeGMT'].split('T')[0]}},
-                {"property": "Duration (min)", "number": {"equals": round(activity.get('duration', 0) / 60, 2)}},
-                {"property": "Distance (km)", "number": {"equals": round(activity.get('distance', 0) / 1000, 2)}},
-            ]
-        }
-    )
-    results = query['results']
-    return results[0] if results else None
+def split_activity_name(activity_name):
+    name_lower = activity_name.lower().strip()
+    sorted_keys = sorted(ACTIVITY_MAPPING.keys(), key=lambda x: -len(x))
+    for act_key in sorted_keys:
+        if name_lower.endswith(act_key):
+            activity = ACTIVITY_MAPPING[act_key][1]
+            location = activity_name[:len(activity_name) - len(act_key)].strip()
+            return activity, location
+    parts = activity_name.strip().split()
+    if len(parts) == 1:
+        return parts[0], ""
+    else:
+        return parts[-1], " ".join(parts[:-1])
 
-def remove_duplicates(client, database_id):
-    """Archive les doublons déjà présents dans Notion (clé = Date + Durée + Distance)."""
-    query = client.databases.query(database_id=database_id)
+def create_activity(client, database_id, activity):
+    activity_date = activity.get('startTimeGMT')
+    raw_name = format_entertainment(activity.get('activityName', 'Unnamed Activity'))
+    activity_name, location = split_activity_name(raw_name)
+
+    activity_type, activity_subtype = format_activity_type(
+        activity.get('activityType', {}).get('typeKey', 'Unknown'),
+        activity_name
+    )
+
+    icon_url = ACTIVITY_ICONS.get(activity_subtype if activity_subtype != activity_type else activity_type)
+
+    properties = {
+        "Date": {"date": {"start": activity_date}},
+        "Activity Type": {"select": {"name": activity_type}},
+        "Subactivity Type": {"select": {"name": activity_subtype}},
+        "Activity Name": {"title": [{"text": {"content": activity_name}}]},
+        "Distance (km)": {"number": round(activity.get('distance', 0) / 1000, 2)},
+        "Duration (min)": {"number": round(activity.get('duration', 0) / 60, 2)},
+        "Calories": {"number": round(activity.get('calories', 0))},
+        "Avg Pace": {"rich_text": [{"text": {"content": format_pace(activity.get('averageSpeed', 0))}}]},
+        "Avg Power": {"number": round(activity.get('avgPower', 0), 1)},
+        "Max Power": {"number": round(activity.get('maxPower', 0), 1)},
+        "Training Effect": {"select": {"name": format_training_effect(activity.get('trainingEffectLabel', 'Unknown'))}},
+        "Aerobic": {"number": round(activity.get('aerobicTrainingEffect', 0), 1)},
+        "Aerobic Effect": {"select": {"name": format_training_message(activity.get('aerobicTrainingEffectMessage', 'Unknown'))}},
+        "Anaerobic": {"number": round(activity.get('anaerobicTrainingEffect', 0), 1)},
+        "Anaerobic Effect": {"select": {"name": format_training_message(activity.get('anaerobicTrainingEffectMessage', 'Unknown'))}},
+        "PR": {"checkbox": activity.get('pr', False)},
+        "Fav": {"checkbox": activity.get('favorite', False)}
+    }
+
+    if location:
+        properties["Location"] = {"rich_text": [{"text": {"content": location}}]}
+
+    page = {
+        "parent": {"database_id": database_id},
+        "properties": properties,
+    }
+
+    if icon_url:
+        page["icon"] = {"type": "external", "external": {"url": icon_url}}
+
+    client.pages.create(**page)
+
+def update_activity(client, existing_activity, new_activity):
+    raw_name = format_entertainment(new_activity.get('activityName', 'Unnamed Activity'))
+    activity_name, location = split_activity_name(raw_name)
+
+    activity_type, activity_subtype = format_activity_type(
+        new_activity.get('activityType', {}).get('typeKey', 'Unknown'),
+        activity_name
+    )
+
+    icon_url = ACTIVITY_ICONS.get(activity_subtype if activity_subtype != activity_type else activity_type)
+
+    properties = {
+        "Activity Type": {"select": {"name": activity_type}},
+        "Subactivity Type": {"select": {"name": activity_subtype}},
+        "Activity Name": {"title": [{"text": {"content": activity_name}}]},
+        "Distance (km)": {"number": round(new_activity.get('distance', 0) / 1000, 2)},
+        "Duration (min)": {"number": round(new_activity.get('duration', 0) / 60, 2)},
+        "Calories": {"number": round(new_activity.get('calories', 0))},
+        "Avg Pace": {"rich_text": [{"text": {"content": format_pace(new_activity.get('averageSpeed', 0))}}]},
+        "Avg Power": {"number": round(new_activity.get('avgPower', 0), 1)},
+        "Max Power": {"number": round(new_activity.get('maxPower', 0), 1)},
+        "Training Effect": {"select": {"name": format_training_effect(new_activity.get('trainingEffectLabel', 'Unknown'))}},
+        "Aerobic": {"number": round(new_activity.get('aerobicTrainingEffect', 0), 1)},
+        "Aerobic Effect": {"select": {"name": format_training_message(new_activity.get('aerobicTrainingEffectMessage', 'Unknown'))}},
+        "Anaerobic": {"number": round(new_activity.get('anaerobicTrainingEffect', 0), 1)},
+        "Anaerobic Effect": {"select": {"name": format_training_message(new_activity.get('anaerobicTrainingEffectMessage', 'Unknown'))}},
+        "PR": {"checkbox": new_activity.get('pr', False)},
+        "Fav": {"checkbox": new_activity.get('favorite', False)}
+    }
+
+    if location:
+        properties["Location"] = {"rich_text": [{"text": {"content": location}}]}
+    else:
+        properties["Location"] = {"rich_text": []}
+
+    update = {
+        "page_id": existing_activity['id'],
+        "properties": properties,
+    }
+
+    if icon_url:
+        update["icon"] = {"type": "external", "external": {"url": icon_url}}
+
+    client.pages.update(**update)
+
+def activity_exists(client, database_id, activity):
+    """
+    Recherche dans Notion si une activité existe déjà.
+    Logique : on récupère toutes les pages pour la même Date, puis on compare
+    Duration et Distance avec une petite tolérance. Si duration/distance manquent,
+    on fallback sur le nom.
+    """
+    target_date = activity.get('startTimeGMT', '').split('T')[0]
+    target_duration = round(activity.get('duration', 0) / 60, 2)
+    target_distance = round(activity.get('distance', 0) / 1000, 2)
+    target_name = format_entertainment(activity.get('activityName', '')).strip().lower()
+
+    start_cursor = None
+    while True:
+        if start_cursor:
+            res = client.databases.query(database_id=database_id, filter={
+                "property": "Date",
+                "date": {"equals": target_date}
+            }, start_cursor=start_cursor)
+        else:
+            res = client.databases.query(database_id=database_id, filter={
+                "property": "Date",
+                "date": {"equals": target_date}
+            })
+
+        for page in res.get('results', []):
+            props = page.get('properties', {})
+            dur = props.get('Duration (min)', {}).get('number')
+            dist = props.get('Distance (km)', {}).get('number')
+
+            # Si on a dur+dist: comparaison avec tolérance (pour arrondis)
+            if dur is not None and dist is not None:
+                if abs(round(dur, 2) - target_duration) <= 0.02 and abs(round(dist, 2) - target_distance) <= 0.02:
+                    return page
+
+            # Sinon fallback sur le nom (si présent)
+            title_arr = props.get('Activity Name', {}).get('title') or []
+            page_name = (title_arr[0].get('plain_text', '') if title_arr else '').strip().lower()
+            if target_name and page_name and target_name == page_name:
+                return page
+
+        if not res.get('has_more'):
+            break
+        start_cursor = res.get('next_cursor')
+
+    return None
+
+def remove_duplicates(client, database_id, archive_only=True):
+    """
+    Parcourt toute la base (pagination), construit des clés (date, durée, distance, nom)
+    et archive toutes les pages qui apparaissent en doublon (garde la première).
+    archive_only=True -> archive (safe). False -> on tente la même chose mais Notion ne propose
+    pas de suppression définitive via API publique : on archive quand même.
+    """
+    # Récupérer toutes les pages (pagination)
+    pages = []
+    start_cursor = None
+    while True:
+        if start_cursor:
+            res = client.databases.query(database_id=database_id, start_cursor=start_cursor, page_size=100)
+        else:
+            res = client.databases.query(database_id=database_id, page_size=100)
+        pages.extend(res.get('results', []))
+        if not res.get('has_more'):
+            break
+        start_cursor = res.get('next_cursor')
+
     seen = {}
     duplicates = []
 
-    for page in query["results"]:
-        props = page["properties"]
-        date = props["Date"]["date"]["start"]
-        duration = props["Duration (min)"]["number"]
-        distance = props["Distance (km)"]["number"]
-        key = (date, duration, distance)
+    for page in pages:
+        props = page.get('properties', {})
+        date = props.get('Date', {}).get('date', {}).get('start')
+        dur = props.get('Duration (min)', {}).get('number')
+        dist = props.get('Distance (km)', {}).get('number')
+        title_arr = props.get('Activity Name', {}).get('title') or []
+        name = (title_arr[0].get('plain_text', '') if title_arr else '').strip().lower()
+
+        key = (date, None if dur is None else round(dur, 2), None if dist is None else round(dist, 2), name)
 
         if key in seen:
-            duplicates.append(page["id"])
+            duplicates.append(page['id'])
         else:
-            seen[key] = page["id"]
+            seen[key] = page['id']
 
+    # Archive duplicates (Notion API: archived=True)
     for dup_id in duplicates:
-        client.pages.update(dup_id, archived=True)  # Archive plutôt que suppression définitive
-        print(f"Archived duplicate: {dup_id}")
-
-# (tes fonctions create_activity, update_activity, split_activity_name, etc. inchangées)
+        try:
+            client.pages.update(page_id=dup_id, archived=True)
+            print(f"Archived duplicate: {dup_id}")
+        except Exception as e:
+            print(f"Failed to archive {dup_id}: {e}")
 
 def main():
     load_dotenv()
+
     garmin_email = os.getenv("GARMIN_EMAIL")
     garmin_password = os.getenv("GARMIN_PASSWORD")
     notion_token = os.getenv("NOTION_TOKEN")
@@ -145,18 +304,29 @@ def main():
     garmin.login()
     client = Client(auth=notion_token)
 
-    # Nettoyer les doublons existants
-    remove_duplicates(client, database_id)
+    # 1) Nettoyer les doublons existants (archive)
+    remove_duplicates(client, database_id, archive_only=True)
 
-    # Import des nouvelles activités
+    # 2) Importer / mettre à jour
     activities = get_all_activities(garmin)
     for activity in activities:
-        if not activity_exists(client, database_id, activity):
-            create_activity(client, database_id, activity)
-            print(f"Created: {activity['activityName']}")
+        activity_date = activity.get('startTimeGMT')
+        raw_name = format_entertainment(activity.get('activityName', 'Unnamed Activity'))
+        activity_type, activity_subtype = format_activity_type(
+            activity.get('activityType', {}).get('typeKey', 'Unknown'),
+            raw_name
+        )
+
+        existing = activity_exists(client, database_id, activity)
+        if existing:
+            if activity_needs_update(existing, activity):
+                update_activity(client, existing, activity)
+                print(f"Updated: {raw_name}")
+            else:
+                print(f"Skipped (exists): {raw_name}")
         else:
-            print(f"Skipped duplicate: {activity['activityName']}")
+            create_activity(client, database_id, activity)
+            print(f"Created: {raw_name}")
 
 if __name__ == '__main__':
     main()
-
