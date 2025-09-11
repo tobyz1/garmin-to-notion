@@ -245,6 +245,41 @@ def activity_exists(client, database_id, activity):
         start_cursor = res.get('next_cursor')
 
     return None
+def activity_needs_update(existing_page, new_activity, tolerance=0.01):
+    """
+    Compare une activité existante dans Notion (page) avec une activité Garmin.
+    Retourne True si une mise à jour est nécessaire.
+    """
+
+    props = existing_page.get("properties", {})
+
+    # Extraire valeurs Notion
+    notion_distance = props.get("Distance (km)", {}).get("number")
+    notion_duration = props.get("Duration (min)", {}).get("number")
+    notion_calories = props.get("Calories", {}).get("number")
+    notion_name_arr = props.get("Activity Name", {}).get("title") or []
+    notion_name = (notion_name_arr[0].get("plain_text", "") if notion_name_arr else "").strip()
+
+    # Valeurs Garmin (normalisées comme dans tes fonctions create/update)
+    garmin_distance = round(new_activity.get("distance", 0) / 1000, 2)
+    garmin_duration = round(new_activity.get("duration", 0) / 60, 2)
+    garmin_calories = round(new_activity.get("calories", 0))
+    garmin_name = format_entertainment(new_activity.get("activityName", "Unnamed Activity")).strip()
+
+    # Comparaisons numériques avec tolérance
+    if notion_distance is not None and abs(notion_distance - garmin_distance) > tolerance:
+        return True
+    if notion_duration is not None and abs(notion_duration - garmin_duration) > tolerance:
+        return True
+    if notion_calories is not None and abs(notion_calories - garmin_calories) > 1:  # ±1 kcal
+        return True
+
+    # Comparaison du nom
+    if notion_name.lower() != garmin_name.lower():
+        return True
+
+    # Si aucune différence détectée
+    return False
 
 def remove_duplicates(client, database_id, archive_only=True):
     """
