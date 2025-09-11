@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 def create_sleep_data(client, database_id, sleep_data):
     daily_sleep = sleep_data.get('dailySleepDTO', {})
     if not daily_sleep:
@@ -31,6 +33,34 @@ def create_sleep_data(client, database_id, sleep_data):
            and (total_sleep / 3600) > 7.5:
             sleep_goal = True
 
+    # Vérifier la semaine précédente
+    today = datetime.now().date()
+    one_week_ago = today - timedelta(days=7)
+
+    query = client.databases.query(
+        **{
+            "database_id": database_id,
+            "filter": {
+                "and": [
+                    {"property": "Long Date", "date": {"on_or_after": str(one_week_ago)}},
+                    {"property": "Long Date", "date": {"on_or_before": str(today)}}
+                ]
+            }
+        }
+    )
+
+    existing_dates = set()
+    for result in query.get("results", []):
+        props = result.get("properties", {})
+        long_date = props.get("Long Date", {}).get("date", {}).get("start")
+        if long_date:
+            existing_dates.add(long_date)
+
+    # Si la date existe déjà, on ne recrée pas
+    if sleep_date in existing_dates:
+        print(f"Sleep entry already exists for {sleep_date}, skipping.")
+        return
+
     properties = {
         "Date": {"title": [{"text": {"content": format_date_for_name(sleep_date)}}]},
         "Times": {"rich_text": [{"text": {"content": f"{format_time_readable(start_ts)} → {format_time_readable(end_ts)}"}}]},
@@ -47,7 +77,7 @@ def create_sleep_data(client, database_id, sleep_data):
         "REM Sleep": {"rich_text": [{"text": {"content": format_duration(rem_sleep_sec)}}]},
         "Awake Time": {"rich_text": [{"text": {"content": format_duration(awake_sleep_sec)}}]},
         "Resting HR": {"number": sleep_data.get('restingHeartRate') or 0},
-        "Sleep Goal": {"checkbox": sleep_goal}  # ✅ Ajout de la checkbox
+        "Sleep Goal": {"checkbox": sleep_goal}
     }
     
     try:
